@@ -1,8 +1,10 @@
 {
   "name": "rfg-cut",
+  "description": "AI 驱动、人工复核优先的中文口播与访谈视频编辑器。",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "keywords": ["video-editing", "chinese-transcription", "codex", "mcp", "talking-head"],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

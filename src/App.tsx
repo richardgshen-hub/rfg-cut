@@ -163,7 +163,7 @@ function App() {
 
   return <main className="app-shell">
     <header className="topbar">
-      <div className="brand"><span className="brand-mark" />RFG <strong>Cut</strong></div>
+      <div className="brand"><img className="brand-mark" src="/brand/rfg-cut-mark.svg" alt="RFG Cut" />RFG <strong>Cut</strong></div>
       <div className="project-control"><span className="project-dot" />筑乐园主理人访谈 <span>· 草稿</span><Icon name="chevron" size={15} /></div>
       <div className="top-actions"><span className="save-state" aria-live="polite"><i />{notice}</span><button className="agent-button" type="button" onClick={copyCodexAgentPrompt} title="复制项目上下文给 Codex AI"><Icon name="sparkle" size={15} />交给 Codex</button><a className="motion-preview-link" href="/demo/rfg-cut-export-preview.mp4" target="_blank" rel="noreferrer">交付预演</a><ToolButton icon="undo" label="撤销" /><ToolButton icon="redo" label="重做" /><button className="export-button" type="button" disabled={!hasActualTranscript} title={hasActualTranscript ? '下载剪映交接包' : '请先完成真实素材转写'} onClick={exportHandoff}><Icon name="download" size={16} />交接包</button></div>
     </header>

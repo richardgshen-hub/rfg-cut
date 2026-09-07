@@ -5,6 +5,8 @@ export type Briefing = {
   callToAction: string
 }
 
+import type { TranscriptLine } from './transcription'
+
 export type HandoffCandidate = {
   id: string
   title: string
@@ -19,7 +21,7 @@ type HandoffInput = {
   projectName: string
   sourceMedia: string
   briefing: Briefing
-  transcript: readonly (readonly string[])[]
+  transcript: TranscriptLine[]
   candidates: HandoffCandidate[]
   cleanRules: Record<string, boolean>
 }
@@ -30,7 +32,7 @@ export function createHandoffPack(input: HandoffInput) {
     generatedAt: new Date().toISOString(),
     project: { name: input.projectName, sourceMedia: input.sourceMedia },
     briefing: input.briefing,
-    transcript: input.transcript.map(([start, text]) => ({ start, text })),
+    transcript: input.transcript,
     editDecisions: {
       cleanup: input.cleanRules,
       selectedHighlights: input.candidates.filter((candidate) => candidate.enabled),
@@ -45,6 +47,16 @@ export function createHandoffPack(input: HandoffInput) {
 
 export function downloadJson(filename: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+export function downloadText(filename: string, text: string, type = 'text/plain;charset=utf-8') {
+  const blob = new Blob([text], { type })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url

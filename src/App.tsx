@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { createHandoffPack, downloadJson, type Briefing } from './handoff'
+import { createHandoffPack, downloadJson, downloadText, type Briefing } from './handoff'
+import { decodeMediaFile, findCleanupCandidates, formatTime, transcriptToSrt, transcribeLocal, type TranscriptLine } from './transcription'
 import './App.css'
 
 type IconName = 'film' | 'folder' | 'captions' | 'sparkle' | 'settings' | 'play' | 'pause' | 'volume' | 'fullscreen' | 'undo' | 'redo' | 'download' | 'check' | 'scissors' | 'plus' | 'chevron' | 'more'
@@ -22,6 +23,24 @@ const lines = [
   ['00:51', '不是上课，也不是把知识塞给他。'],
   ['01:02', '而是邀请他去看，去碰，去问。'],
 ]
+
+const demoTranscript: TranscriptLine[] = lines.map(([at, text], index) => {
+  const [minutes, seconds] = at.split(':').map(Number)
+  const start = minutes * 60 + seconds
+  return { start, end: start + (index < lines.length - 1 ? 5.5 : 6), text }
+})
+
+function createHighlights(transcript: TranscriptLine[]): Suggestion[] {
+  if (!transcript.length) return []
+  const size = Math.max(1, Math.ceil(transcript.length / 3))
+  return Array.from({ length: Math.min(3, Math.ceil(transcript.length / size)) }, (_, index) => {
+    const group = transcript.slice(index * size, (index + 1) * size)
+    const first = group[0]
+    const last = group[group.length - 1]
+    const duration = Math.max(1, Math.round(last.end - first.start))
+    return { id: `generated-${index}`, title: first.text.slice(0, 28), start: formatTime(first.start).slice(3), end: formatTime(last.end).slice(3), duration: `0:${String(duration).padStart(2, '0')}`, note: '由真实逐字稿分段生成，请确认叙事完整度。', enabled: index < 2 }
+  })
+}
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const icons = {
@@ -58,13 +77,33 @@ function App() {
     callToAction: '保存并转发给正在为孩子找展览的朋友。',
   })
   const [cleanRules, setCleanRules] = useState({ fillers: true, pauses: true, breaths: false })
+  const [sourceFile, setSourceFile] = useState<File | null>(null)
+  const [transcriptLines, setTranscriptLines] = useState<TranscriptLine[]>(demoTranscript)
+  const [asrStatus, setAsrStatus] = useState<{ progress: number; message: string; running: boolean }>({ progress: 0, message: '等待导入素材', running: false })
   const selectedCount = useMemo(() => suggestions.filter((item) => item.enabled).length, [suggestions])
+  const cleanupCandidates = useMemo(() => findCleanupCandidates(transcriptLines), [transcriptLines])
   const timestamp = `00:${String(Math.floor(time / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`
   const toggle = (id: string) => { setSuggestions((items) => items.map((item) => item.id === id ? { ...item, enabled: !item.enabled } : item)); setSelected(id); setNotice('剪辑建议已更新') }
   const toggleCleanRule = (rule: keyof typeof cleanRules) => setCleanRules((rules) => ({ ...rules, [rule]: !rules[rule] }))
   const exportHandoff = () => {
-    downloadJson('rfg-cut-jianying-handoff.json', createHandoffPack({ projectName: '筑乐园主理人访谈', sourceMedia: 'C1556.MP4', briefing, transcript: lines, candidates: suggestions, cleanRules }))
+    downloadJson('rfg-cut-jianying-handoff.json', createHandoffPack({ projectName: '筑乐园主理人访谈', sourceMedia: sourceFile?.name ?? 'C1556.MP4', briefing, transcript: transcriptLines, candidates: suggestions, cleanRules }))
     setNotice('已下载剪映交接包，等待人工复核')
+  }
+  const runTranscription = async () => {
+    if (!sourceFile) { setNotice('请先导入一个视频或音频文件'); return }
+    setAsrStatus({ progress: 0, message: '正在从本地素材解码音频', running: true })
+    try {
+      const audio = await decodeMediaFile(sourceFile)
+      const result = await transcribeLocal(audio, (progress, message) => setAsrStatus({ progress, message, running: true }))
+      if (!result.length) throw new Error('没有识别到可用语音，请换一段更清晰的素材。')
+      setTranscriptLines(result)
+      setSuggestions(createHighlights(result))
+      setAsrStatus({ progress: 1, message: `完成：${result.length} 个带时间码的片段`, running: false })
+      setNotice('真实逐字稿、高光和清理建议已更新')
+    } catch (error) {
+      setAsrStatus({ progress: 0, message: error instanceof Error ? error.message : '本地转写失败', running: false })
+      setNotice('转写没有完成，请查看状态说明')
+    }
   }
 
   return <main className="app-shell">
@@ -76,7 +115,7 @@ function App() {
     <section className="workspace">
       <aside className="left-sidebar">
         <nav className="sidebar-nav"><button className="nav-item active"><Icon name="film" />剪辑</button><button className="nav-item"><Icon name="folder" />媒体</button><button className="nav-item"><Icon name="captions" />字幕</button><button className="nav-item"><Icon name="sparkle" />模板</button></nav>
-        <div className="media-section"><div className="section-title"><span>本项目</span><button type="button" aria-label="添加媒体"><Icon name="plus" size={15} /></button></div><button className="media-row selected"><span className="media-thumb warm" /><span><strong>C1556.MP4</strong><small>06:18 · 4K</small></span><Icon name="more" size={16} /></button><button className="media-row"><span className="media-thumb cool" /><span><strong>opening.mp3</strong><small>00:14 · 音乐</small></span></button></div>
+        <div className="media-section"><div className="section-title"><span>本项目</span><label className="media-add" title="导入媒体"><Icon name="plus" size={15} /><input type="file" accept="video/*,audio/*" onChange={(event) => { const file = event.target.files?.[0] ?? null; setSourceFile(file); if (file) { setAsrStatus({ progress: 0, message: `已选择 ${file.name}`, running: false }); setNotice('素材仅在本机处理，尚未上传') } }} /></label></div><button className="media-row selected"><span className="media-thumb warm" /><span><strong>{sourceFile?.name ?? 'C1556.MP4'}</strong><small>{sourceFile ? `${(sourceFile.size / 1_048_576).toFixed(1)} MB · 本地文件` : '演示素材 · 06:18'}</small></span><Icon name="more" size={16} /></button><button className="media-row"><span className="media-thumb cool" /><span><strong>opening.mp3</strong><small>00:14 · 音乐</small></span></button><button className="transcribe-button" type="button" disabled={asrStatus.running} onClick={runTranscription}><Icon name="sparkle" size={15} />{asrStatus.running ? '正在本机转写…' : '转写本地素材'}</button><div className="asr-state"><span style={{ width: `${Math.round(asrStatus.progress * 100)}%` }} /><p>{asrStatus.message}</p></div></div>
         <div className="sidebar-bottom"><button className="nav-item"><Icon name="settings" />设置</button></div>
       </aside>
       <section className="editor">
@@ -89,8 +128,8 @@ function App() {
         <section className="timeline"><div className="timeline-head">{['00:00','00:30','01:00','01:30','02:00','02:30','03:00','03:30','04:00','04:30','05:00','05:30','06:00'].map((item) => <span key={item}>{item}</span>)}</div><div className="track-row"><em>V1</em><div className="track video-track"><div className="clip-block"><span>C1556.MP4</span></div><div className="selection-range" /></div></div><div className="track-row"><em>A1</em><div className="track audio-track"><div className="waveform" /></div></div><div className="track-row caption-row"><em>T</em><div className="track"><span className="caption-chip">所以这次展览的起点，是想给孩子一个可以慢下来的地方。</span></div></div><div className="playhead" style={{ left: `${Math.max(10, Math.min(90, time / 4.2))}%` }} /><input className="scrubber" aria-label="播放位置" type="range" min="0" max="378" value={time} onChange={(event) => setTime(Number(event.target.value))} /></section>
       </section>
       <aside className="right-sidebar"><div className="inspector-head"><div><h1>智能剪辑</h1><p>先理解内容意图，再给出可审阅的剪辑建议</p></div><ToolButton icon="more" label="更多选项" /></div><div className="inspector-tabs"><button className={panel === 'highlights' ? 'active' : ''} type="button" onClick={() => setPanel('highlights')}>高光 <span>{selectedCount}</span></button><button className={panel === 'transcript' ? 'active' : ''} type="button" onClick={() => setPanel('transcript')}>逐字稿</button><button className={panel === 'brief' ? 'active' : ''} type="button" onClick={() => setPanel('brief')}>Brief</button></div>
-        {panel === 'highlights' ? <div className="suggestions"><p className="panel-intro"><Icon name="sparkle" size={15} />结合 brief、观点完整度、情绪变化和停顿节奏</p>{suggestions.map((item) => <article className={`suggestion ${selected === item.id ? 'focused' : ''}`} key={item.id}><button type="button" className={`check ${item.enabled ? 'checked' : ''}`} onClick={() => toggle(item.id)} aria-label="选择高光"><Icon name={item.enabled ? 'check' : 'plus'} size={14} /></button><button type="button" className="suggestion-copy" onClick={() => setSelected(item.id)}><div><span>{item.start} — {item.end}</span><time>{item.duration}</time></div><strong>{item.title}</strong><p>{item.note}</p></button></article>)}<button type="button" className="generate-button" onClick={() => setNotice(`已生成 ${selectedCount} 条待确认高光片段`)}><Icon name="scissors" size={16} />生成 {selectedCount} 条高光</button></div> : panel === 'transcript' ? <div className="transcript-list">{lines.map(([at, copy], index) => <button key={at} type="button" className={index > 4 ? 'highlighted' : ''} onClick={() => setTime(Number(at.slice(3)) + index * 6)}><time>{at}</time><span>{copy}{index === 3 && <i className="tag filler">口癖</i>}{index === 5 && <i className="tag breath">换气口</i>}</span></button>)}</div> : <div className="brief-form"><p>这份 brief 会影响高光排序和剪映交接包内容。</p>{([['goal', '本条视频目标'], ['audience', '目标受众'], ['keyMessage', '核心表达'], ['callToAction', '希望观众行动']] as const).map(([field, label]) => <label key={field}><span>{label}</span><textarea value={briefing[field]} onChange={(event) => setBriefing((current) => ({ ...current, [field]: event.target.value }))} /></label>)}<button type="button" className="generate-button" onClick={() => { setPanel('highlights'); setNotice('已用最新 Brief 重新排序建议') }}><Icon name="sparkle" size={16} />应用 Brief</button></div>}
-        <div className="edit-assist"><div><span><Icon name="scissors" size={16} />智能清理</span><div className="clean-rules">{([['fillers', '口癖'], ['pauses', '停顿'], ['breaths', '换气口']] as const).map(([rule, label]) => <button key={rule} className={cleanRules[rule] ? 'on' : ''} type="button" onClick={() => toggleCleanRule(rule)}>{cleanRules[rule] && <Icon name="check" size={10} />}{label}</button>)}</div></div><button type="button" onClick={() => setNotice('已生成可复核的删除清单')}>查看清单 ›</button></div>
+        {panel === 'highlights' ? <div className="suggestions"><p className="panel-intro"><Icon name="sparkle" size={15} />结合 brief、观点完整度、情绪变化和停顿节奏</p>{suggestions.map((item) => <article className={`suggestion ${selected === item.id ? 'focused' : ''}`} key={item.id}><button type="button" className={`check ${item.enabled ? 'checked' : ''}`} onClick={() => toggle(item.id)} aria-label="选择高光"><Icon name={item.enabled ? 'check' : 'plus'} size={14} /></button><button type="button" className="suggestion-copy" onClick={() => setSelected(item.id)}><div><span>{item.start} — {item.end}</span><time>{item.duration}</time></div><strong>{item.title}</strong><p>{item.note}</p></button></article>)}<button type="button" className="generate-button" onClick={() => setNotice(`已生成 ${selectedCount} 条待确认高光片段`)}><Icon name="scissors" size={16} />生成 {selectedCount} 条高光</button></div> : panel === 'transcript' ? <div className="transcript-list"><div className="transcript-actions"><span>{transcriptLines.length} 段 · {cleanupCandidates.length} 个清理候选</span><button type="button" onClick={() => { downloadText('rfg-cut-transcript.srt', transcriptToSrt(transcriptLines), 'application/x-subrip;charset=utf-8'); setNotice('已下载真实转写的 SRT 字幕') }}>导出 SRT</button></div>{transcriptLines.map((line) => <button key={`${line.start}-${line.text}`} type="button" className={line.start >= 42 ? 'highlighted' : ''} onClick={() => setTime(Math.floor(line.start))}><time>{formatTime(line.start).slice(3)}</time><span>{line.text}{findCleanupCandidates([line]).some((item) => item.type === '口癖') && <i className="tag filler">口癖</i>}</span></button>)}</div> : <div className="brief-form"><p>这份 brief 会影响高光排序和剪映交接包内容。</p>{([['goal', '本条视频目标'], ['audience', '目标受众'], ['keyMessage', '核心表达'], ['callToAction', '希望观众行动']] as const).map(([field, label]) => <label key={field}><span>{label}</span><textarea value={briefing[field]} onChange={(event) => setBriefing((current) => ({ ...current, [field]: event.target.value }))} /></label>)}<button type="button" className="generate-button" onClick={() => { setPanel('highlights'); setNotice('已用最新 Brief 重新排序建议') }}><Icon name="sparkle" size={16} />应用 Brief</button></div>}
+        <div className="edit-assist"><div><span><Icon name="scissors" size={16} />智能清理 · {cleanupCandidates.length} 个候选</span><div className="clean-rules">{([['fillers', '口癖'], ['pauses', '停顿'], ['breaths', '换气口']] as const).map(([rule, label]) => <button key={rule} className={cleanRules[rule] ? 'on' : ''} type="button" onClick={() => toggleCleanRule(rule)}>{cleanRules[rule] && <Icon name="check" size={10} />}{label}</button>)}</div></div><button type="button" onClick={() => { setPanel('transcript'); setNotice('逐字稿中显示了可复核的清理候选') }}>查看清单 ›</button></div>
       </aside>
     </section>
   </main>

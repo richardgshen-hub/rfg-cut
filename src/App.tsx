@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { publishAgentContext, readAgentSession, type AgentBridgeSession } from './agentBridge'
 import { createHandoffPack, downloadJson, downloadText, type Briefing } from './handoff'
 import { buildCodexEditPrompt } from './codexAgent'
 import { decodeMediaFile, findCleanupCandidates, formatTime, transcriptToSrt, transcribeLocal, type TranscriptLine } from './transcription'
@@ -63,10 +64,17 @@ function ToolButton({ icon, label, onClick }: { icon: IconName; label: string; o
   return <button className="tool-button" type="button" onClick={onClick} aria-label={label} title={label}><Icon name={icon} /></button>
 }
 
+function AgentPanel({ session, connected, onJumpToTime }: { session: AgentBridgeSession | null; connected: boolean; onJumpToTime: (seconds: number) => void }) {
+  const plan = session?.reviewPlan
+  if (!connected) return <div className="agent-panel"><div className="agent-status"><i />本机桥接尚未连接</div><p>启动 <code>npm run agent:bridge</code> 后，点“交给 Codex”。Codex 的计划会回到这里，仍需你确认后才可实剪。</p></div>
+  if (!plan) return <div className="agent-panel"><div className="agent-status live"><i />已连接本机桥接</div><p>项目上下文已在本机等待。将“交给 Codex”复制的内容发到装有 RFG Cut Agent 的新 Codex task。</p></div>
+  return <div className="agent-panel"><div className="agent-status live"><i />Codex 计划已回传 · 待复核</div><p className="agent-plan-intro">{plan.nextStep}</p><h2>建议高光</h2>{plan.highlights.map((item) => <button className="agent-item" type="button" key={item.id} onClick={() => onJumpToTime(Math.floor(item.start))}><span>{formatTime(item.start).slice(3)} — {formatTime(item.end).slice(3)}</span><strong>{item.title}</strong><small>{item.reason}</small></button>)}<h2>清理候选</h2>{plan.cleanupCandidates.slice(0, 8).map((item, index) => <button className="agent-item cleanup" type="button" key={`${item.type}-${item.start}-${index}`} onClick={() => onJumpToTime(Math.floor(item.start))}><span>{item.type} · {formatTime(item.start).slice(3)}</span><small>{item.reason}</small></button>)}</div>
+}
+
 function App() {
   const [playing, setPlaying] = useState(false)
   const [time, setTime] = useState(42)
-  const [panel, setPanel] = useState<'highlights' | 'transcript' | 'brief' | 'review'>('highlights')
+  const [panel, setPanel] = useState<'highlights' | 'transcript' | 'brief' | 'review' | 'agent'>('highlights')
   const [aspect, setAspect] = useState('9:16')
   const [suggestions, setSuggestions] = useState(initialSuggestions)
   const [notice, setNotice] = useState('已自动保存到本机')
@@ -82,6 +90,9 @@ function App() {
   const [transcriptLines, setTranscriptLines] = useState<TranscriptLine[]>(demoTranscript)
   const [hasActualTranscript, setHasActualTranscript] = useState(false)
   const [asrStatus, setAsrStatus] = useState<{ progress: number; message: string; running: boolean }>({ progress: 0, message: '等待导入素材', running: false })
+  const [agentConnected, setAgentConnected] = useState(false)
+  const [agentSession, setAgentSession] = useState<AgentBridgeSession | null>(null)
+  const bridgeRevision = useRef(0)
   const selectedCount = useMemo(() => suggestions.filter((item) => item.enabled).length, [suggestions])
   const cleanupCandidates = useMemo(() => findCleanupCandidates(transcriptLines), [transcriptLines])
   const workflowStep = hasActualTranscript ? 4 : sourceFile ? 3 : 1
@@ -94,14 +105,43 @@ function App() {
     setNotice('已下载剪映交接包，等待人工复核')
   }
   const copyCodexAgentPrompt = async () => {
-    const prompt = buildCodexEditPrompt({ sourceMedia: sourceFile?.name ?? '尚未导入素材', briefing, transcript: transcriptLines, hasActualTranscript })
+    const context = { sourceMedia: sourceFile?.name ?? '尚未导入素材', briefing, transcript: transcriptLines, hasActualTranscript }
+    const prompt = buildCodexEditPrompt(context)
+    const bridgeRequest = publishAgentContext(context)
     try {
-      await navigator.clipboard.writeText(prompt)
-      setNotice(hasActualTranscript ? '已复制项目上下文：可粘贴给 Codex AI' : '已复制演示上下文；导入真实素材后可实剪')
+      const [, session] = await Promise.all([navigator.clipboard.writeText(prompt), bridgeRequest])
+      bridgeRevision.current = session.revision
+      setAgentSession(session)
+      setAgentConnected(true)
+      setPanel('agent')
+      setNotice(hasActualTranscript ? '已同步本机桥接：可粘贴给 Codex AI' : '已同步演示上下文；导入真实素材后可实剪')
     } catch {
-      setNotice('复制失败：请在支持剪贴板权限的浏览器中重试')
+      try {
+        await navigator.clipboard.writeText(prompt)
+        setNotice('已复制项目上下文；请先启动 npm run agent:bridge 以实时回传计划')
+      } catch {
+        setNotice('复制失败：请在支持剪贴板权限的浏览器中重试')
+      }
     }
   }
+  useEffect(() => {
+    if (!agentConnected) return
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const next = await readAgentSession()
+        if (!cancelled && next.revision !== bridgeRevision.current) {
+          bridgeRevision.current = next.revision
+          setAgentSession(next)
+          if (next.reviewPlan) setPanel('agent')
+        }
+      } catch {
+        if (!cancelled) setAgentConnected(false)
+      }
+    }
+    const timer = window.setInterval(() => { void poll() }, 1800)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [agentConnected])
   const runTranscription = async () => {
     if (!sourceFile) { setNotice('请先导入一个视频或音频文件'); return }
     setAsrStatus({ progress: 0, message: '正在从本地素材解码音频', running: true })
@@ -143,8 +183,8 @@ function App() {
         </div></div>
         <section className="timeline"><div className="timeline-head">{['00:00','00:30','01:00','01:30','02:00','02:30','03:00','03:30','04:00','04:30','05:00','05:30','06:00'].map((item) => <span key={item}>{item}</span>)}</div><div className="track-row"><em>V1</em><div className="track video-track"><div className="clip-block"><span>C1556.MP4</span></div><div className="selection-range" /></div></div><div className="track-row"><em>A1</em><div className="track audio-track"><div className="waveform" /></div></div><div className="track-row caption-row"><em>T</em><div className="track"><span className="caption-chip">所以这次展览的起点，是想给孩子一个可以慢下来的地方。</span></div></div><div className="playhead" style={{ left: `${Math.max(10, Math.min(90, time / 4.2))}%` }} /><input className="scrubber" aria-label="播放位置" type="range" min="0" max="378" value={time} onChange={(event) => setTime(Number(event.target.value))} /></section>
       </section>
-      <aside className="right-sidebar"><div className="inspector-head"><div><h1>智能剪辑</h1><p>先理解内容意图，再给出可审阅的剪辑建议</p></div><ToolButton icon="more" label="更多选项" /></div><div className="inspector-tabs"><button className={panel === 'highlights' ? 'active' : ''} type="button" onClick={() => setPanel('highlights')}>高光 <span>{selectedCount}</span></button><button className={panel === 'transcript' ? 'active' : ''} type="button" onClick={() => setPanel('transcript')}>逐字稿</button><button className={panel === 'review' ? 'active' : ''} type="button" onClick={() => setPanel('review')}>复核</button><button className={panel === 'brief' ? 'active' : ''} type="button" onClick={() => setPanel('brief')}>Brief</button></div>
-        {panel === 'highlights' ? <div className="suggestions"><p className="panel-intro"><Icon name="sparkle" size={15} />结合 brief、观点完整度、情绪变化和停顿节奏</p>{suggestions.map((item) => <article className={`suggestion ${selected === item.id ? 'focused' : ''}`} key={item.id}><button type="button" className={`check ${item.enabled ? 'checked' : ''}`} onClick={() => toggle(item.id)} aria-label="选择高光"><Icon name={item.enabled ? 'check' : 'plus'} size={14} /></button><button type="button" className="suggestion-copy" onClick={() => setSelected(item.id)}><div><span>{item.start} — {item.end}</span><time>{item.duration}</time></div><strong>{item.title}</strong><p>{item.note}</p></button></article>)}<button type="button" className="generate-button" onClick={() => setNotice(`已生成 ${selectedCount} 条待确认高光片段`)}><Icon name="scissors" size={16} />生成 {selectedCount} 条高光</button></div> : panel === 'transcript' ? <div className="transcript-list"><div className="transcript-actions"><span>{transcriptLines.length} 段 · {cleanupCandidates.length} 个清理候选</span><button type="button" disabled={!hasActualTranscript} onClick={() => { downloadText('rfg-cut-transcript.srt', transcriptToSrt(transcriptLines), 'application/x-subrip;charset=utf-8'); setNotice('已下载真实转写的 SRT 字幕') }}>导出 SRT</button></div>{transcriptLines.map((line) => <button key={`${line.start}-${line.text}`} type="button" className={line.start >= 42 ? 'highlighted' : ''} onClick={() => setTime(Math.floor(line.start))}><time>{formatTime(line.start).slice(3)}</time><span>{line.text}{findCleanupCandidates([line]).some((item) => item.type === '口癖') && <i className="tag filler">口癖</i>}</span></button>)}</div> : panel === 'review' ? <div className="review-list"><p className="panel-intro"><Icon name="scissors" size={15} />这是建议清单，不会自动删除原片内容。</p>{hasActualTranscript ? cleanupCandidates.length ? cleanupCandidates.map((candidate, index) => <article className="review-row" key={`${candidate.type}-${candidate.start}-${index}`}><span className={`tag ${candidate.type === '口癖' ? 'filler' : candidate.type === '换气口' ? 'breath' : 'pause'}`}>{candidate.type}</span><div><strong>{formatTime(candidate.start).slice(3)} — {formatTime(candidate.end).slice(3)}</strong><p>{candidate.note}</p></div></article>) : <div className="empty-message">没有发现需要优先复核的候选。</div> : <div className="empty-message">完成真实转写后，这里会列出可逐条复核的口癖、停顿和换气候选。</div>}</div> : <div className="brief-form"><p>这份 brief 会影响高光排序和剪映交接包内容。</p>{([['goal', '本条视频目标'], ['audience', '目标受众'], ['keyMessage', '核心表达'], ['callToAction', '希望观众行动']] as const).map(([field, label]) => <label key={field}><span>{label}</span><textarea value={briefing[field]} onChange={(event) => setBriefing((current) => ({ ...current, [field]: event.target.value }))} /></label>)}<button type="button" className="generate-button" onClick={() => { setPanel('highlights'); setNotice('已用最新 Brief 重新排序建议') }}><Icon name="sparkle" size={16} />应用 Brief</button></div>}
+      <aside className="right-sidebar"><div className="inspector-head"><div><h1>智能剪辑</h1><p>先理解内容意图，再给出可审阅的剪辑建议</p></div><ToolButton icon="more" label="更多选项" /></div><div className="inspector-tabs"><button className={panel === 'highlights' ? 'active' : ''} type="button" onClick={() => setPanel('highlights')}>高光 <span>{selectedCount}</span></button><button className={panel === 'transcript' ? 'active' : ''} type="button" onClick={() => setPanel('transcript')}>逐字稿</button><button className={panel === 'review' ? 'active' : ''} type="button" onClick={() => setPanel('review')}>复核</button><button className={panel === 'brief' ? 'active' : ''} type="button" onClick={() => setPanel('brief')}>Brief</button><button className={panel === 'agent' ? 'active agent-tab' : 'agent-tab'} type="button" onClick={() => setPanel('agent')}>Codex {agentSession?.reviewPlan && <span>●</span>}</button></div>
+        {panel === 'highlights' ? <div className="suggestions"><p className="panel-intro"><Icon name="sparkle" size={15} />结合 brief、观点完整度、情绪变化和停顿节奏</p>{suggestions.map((item) => <article className={`suggestion ${selected === item.id ? 'focused' : ''}`} key={item.id}><button type="button" className={`check ${item.enabled ? 'checked' : ''}`} onClick={() => toggle(item.id)} aria-label="选择高光"><Icon name={item.enabled ? 'check' : 'plus'} size={14} /></button><button type="button" className="suggestion-copy" onClick={() => setSelected(item.id)}><div><span>{item.start} — {item.end}</span><time>{item.duration}</time></div><strong>{item.title}</strong><p>{item.note}</p></button></article>)}<button type="button" className="generate-button" onClick={() => setNotice(`已生成 ${selectedCount} 条待确认高光片段`)}><Icon name="scissors" size={16} />生成 {selectedCount} 条高光</button></div> : panel === 'transcript' ? <div className="transcript-list"><div className="transcript-actions"><span>{transcriptLines.length} 段 · {cleanupCandidates.length} 个清理候选</span><button type="button" disabled={!hasActualTranscript} onClick={() => { downloadText('rfg-cut-transcript.srt', transcriptToSrt(transcriptLines), 'application/x-subrip;charset=utf-8'); setNotice('已下载真实转写的 SRT 字幕') }}>导出 SRT</button></div>{transcriptLines.map((line) => <button key={`${line.start}-${line.text}`} type="button" className={line.start >= 42 ? 'highlighted' : ''} onClick={() => setTime(Math.floor(line.start))}><time>{formatTime(line.start).slice(3)}</time><span>{line.text}{findCleanupCandidates([line]).some((item) => item.type === '口癖') && <i className="tag filler">口癖</i>}</span></button>)}</div> : panel === 'review' ? <div className="review-list"><p className="panel-intro"><Icon name="scissors" size={15} />这是建议清单，不会自动删除原片内容。</p>{hasActualTranscript ? cleanupCandidates.length ? cleanupCandidates.map((candidate, index) => <article className="review-row" key={`${candidate.type}-${candidate.start}-${index}`}><span className={`tag ${candidate.type === '口癖' ? 'filler' : candidate.type === '换气口' ? 'breath' : 'pause'}`}>{candidate.type}</span><div><strong>{formatTime(candidate.start).slice(3)} — {formatTime(candidate.end).slice(3)}</strong><p>{candidate.note}</p></div></article>) : <div className="empty-message">没有发现需要优先复核的候选。</div> : <div className="empty-message">完成真实转写后，这里会列出可逐条复核的口癖、停顿和换气候选。</div>}</div> : panel === 'brief' ? <div className="brief-form"><p>这份 brief 会影响高光排序和剪映交接包内容。</p>{([['goal', '本条视频目标'], ['audience', '目标受众'], ['keyMessage', '核心表达'], ['callToAction', '希望观众行动']] as const).map(([field, label]) => <label key={field}><span>{label}</span><textarea value={briefing[field]} onChange={(event) => setBriefing((current) => ({ ...current, [field]: event.target.value }))} /></label>)}<button type="button" className="generate-button" onClick={() => { setPanel('highlights'); setNotice('已用最新 Brief 重新排序建议') }}><Icon name="sparkle" size={16} />应用 Brief</button></div> : <AgentPanel session={agentSession} connected={agentConnected} onJumpToTime={setTime} />}
         <div className="edit-assist"><div><span><Icon name="scissors" size={16} />智能清理 · {cleanupCandidates.length} 个候选</span><div className="clean-rules">{([['fillers', '口癖'], ['pauses', '停顿'], ['breaths', '换气口']] as const).map(([rule, label]) => <button key={rule} className={cleanRules[rule] ? 'on' : ''} type="button" onClick={() => toggleCleanRule(rule)}>{cleanRules[rule] && <Icon name="check" size={10} />}{label}</button>)}</div></div><button type="button" onClick={() => { setPanel('review'); setNotice('请逐条复核后再交给剪映处理') }}>查看清单 ›</button></div>
       </aside>
     </section>

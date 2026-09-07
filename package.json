@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "agent:bridge": "node scripts/rfg-agent-bridge.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

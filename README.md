@@ -15,10 +15,10 @@
 
 RFG Cut 不把浏览器网页伪装成能直接调用你的 ChatGPT 订阅。它提供两种明确的接入方式：
 
-1. **Codex Agent 模式（已附源码）**：`plugins/rfg-cut-agent/` 是一个本地 Codex 插件。它让 Codex 负责理解 Brief、逐字稿与剪辑意图，随后调用 RFG Cut 的 MCP 工具生成可复核计划；只有你确认精确时间范围后，才允许调用本机 FFmpeg 输出初剪 MP4。网页右上角“交给 Codex”会复制包含项目上下文的提示词。
+1. **Codex Agent 模式（已附源码）**：`plugins/rfg-cut-agent/` 是一个本地 Codex 插件。它让 Codex 负责理解 Brief、逐字稿与剪辑意图，随后调用 RFG Cut 的 MCP 工具生成可复核计划；只有你确认精确时间范围后，才允许调用本机 FFmpeg 输出初剪 MP4。网页右上角“交给 Codex”会把项目上下文交给本机桥接服务并复制同一份提示词；Codex 生成的计划会自动回到网页的「Codex」面板。
 2. **独立 Web 模式（后续服务端接入）**：面向不使用 Codex 的客户，需要在服务端配置模型 API 并按 API 用量计费；绝不把 API Key 放进浏览器，也不把 ChatGPT/Codex 订阅额度当成网页 API。
 
-Codex Agent 模式的模型推理由用户正在使用的 Codex 宿主负责；RFG Cut 的本地“生成复核计划”不调用云端模型，实剪只在明确确认后运行本机 FFmpeg。
+Codex Agent 模式的模型推理由用户正在使用的 Codex 宿主负责；RFG Cut 的本地“生成复核计划”不调用云端模型，实剪只在明确确认后运行本机 FFmpeg。桥接服务只监听 `127.0.0.1`，只暂存当前编辑上下文和复核计划，不上传媒体文件。
 
 ## 真实可用的第一条链路
 
@@ -55,6 +55,14 @@ Codex Agent 模式的模型推理由用户正在使用的 Codex 宿主负责；R
 npm install
 npm run dev
 ```
+
+如需让 Codex 的复核计划自动回到网页，在另一个终端运行：
+
+```bash
+npm run agent:bridge
+```
+
+然后打开 RFG Cut，转写或输入逐字稿后点击「交给 Codex」。在新建的 Codex task 中使用 `rfg-cut-agent` 插件生成复核计划；计划会显示在网页的「Codex」面板。没有运行桥接服务时，复制的提示词仍可照常手动使用。
 
 ## 验证
 

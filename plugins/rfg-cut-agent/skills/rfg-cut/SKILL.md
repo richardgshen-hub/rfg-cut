@@ -5,7 +5,7 @@ description: Use when the user wants a review-first AI edit plan or a local roug
 
 # RFG Cut Agent
 
-RFG Cut is a review-first editing workflow. The host agent provides reasoning using its own allowance; the local MCP tools normalize the edit plan and can render confirmed segments with FFmpeg.
+RFG Cut is a review-first editing workflow. The host agent provides reasoning using its own allowance; the local MCP tools normalize the edit plan and can render confirmed segments with FFmpeg. If the user has started `npm run agent:bridge` from the RFG Cut project, a review plan is returned to the local browser UI automatically; this loopback bridge is optional.
 
 ## Workflow
 

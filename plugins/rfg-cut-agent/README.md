@@ -18,3 +18,7 @@ node scripts/rfg-cut-mcp.mjs
 ```
 
 The server speaks MCP JSON-RPC over standard input/output. The repository test workflow validates the plugin manifest and calls the review-plan tool with a timestamped sample.
+
+## Optional local return channel
+
+From the RFG Cut project root, run `npm run agent:bridge` before starting a Codex task. When `rfg_cut_create_review_plan` finishes, the MCP server attempts to return its review-only plan to `http://127.0.0.1:8787`; the RFG Cut browser UI then displays it in the Codex panel. The bridge is optional, loopback-only, and never transfers media files. Set `RFG_CUT_BRIDGE_URL` only when using another local loopback address.

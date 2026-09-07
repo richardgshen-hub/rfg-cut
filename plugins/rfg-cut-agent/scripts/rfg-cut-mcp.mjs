@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const FILLER_PATTERN = /^(嗯+|呃+|额+|那个|就是|然后|对|其实|你知道|我觉得)[，,。.!！]?$/u
+const bridgeUrl = process.env.RFG_CUT_BRIDGE_URL ?? 'http://127.0.0.1:8787'
 
 function jsonResponse(id, result) {
   return JSON.stringify({ jsonrpc: '2.0', id, result })
@@ -74,6 +75,23 @@ function createReviewPlan({ sourceMedia = '未命名素材', briefing = {}, tran
 
 function toolResult(value) {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
+}
+
+async function publishReviewPlan(reviewPlan) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 1500)
+  try {
+    await fetch(`${bridgeUrl}/plan`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reviewPlan }),
+      signal: controller.signal,
+    })
+  } catch {
+    // The bridge is optional: Codex still receives the plan if the web app is not running.
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function renderRoughCut({ sourceFile, outputFile, segments }) {
@@ -160,6 +178,7 @@ input.on('line', async (line) => {
           : null
       if (!handler) throw new Error(`未知工具：${params.name}`)
       const result = await handler()
+      if (params.name === 'rfg_cut_create_review_plan') await publishReviewPlan(result)
       console.log(jsonResponse(id, toolResult(result)))
       return
     }

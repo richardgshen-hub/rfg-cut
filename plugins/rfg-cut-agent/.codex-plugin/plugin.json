@@ -1,0 +1,23 @@
+{
+  "name": "rfg-cut-agent",
+  "version": "0.1.0",
+  "description": "Review-first AI editing tools for Chinese talking-head and interview videos.",
+  "author": {
+    "name": "RFG Cut"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "RFG Cut Agent",
+    "shortDescription": "Turn a reviewed transcript into an edit plan or local rough cut.",
+    "longDescription": "RFG Cut gives Codex review-first tools for Chinese talking-head and interview edits. It creates auditable edit plans first and renders only after a human confirms the selected segments.",
+    "developerName": "RFG Cut",
+    "category": "Creative",
+    "capabilities": ["Local tools", "Media planning", "Review-first rendering"],
+    "defaultPrompt": [
+      "Use RFG Cut to propose a review-first edit plan for this interview.",
+      "Use RFG Cut to turn my confirmed time ranges into a rough cut."
+    ],
+    "brandColor": "#EF7C45"
+  },
+  "mcpServers": "./.mcp.json"
+}

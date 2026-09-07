@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createHandoffPack, downloadJson, downloadText, type Briefing } from './handoff'
+import { buildCodexEditPrompt } from './codexAgent'
 import { decodeMediaFile, findCleanupCandidates, formatTime, transcriptToSrt, transcribeLocal, type TranscriptLine } from './transcription'
 import './App.css'
 
@@ -92,6 +93,15 @@ function App() {
     downloadJson('rfg-cut-jianying-handoff.json', createHandoffPack({ projectName: '筑乐园主理人访谈', sourceMedia: sourceFile?.name ?? 'C1556.MP4', briefing, transcript: transcriptLines, candidates: suggestions, cleanRules, cleanupCandidates }))
     setNotice('已下载剪映交接包，等待人工复核')
   }
+  const copyCodexAgentPrompt = async () => {
+    const prompt = buildCodexEditPrompt({ sourceMedia: sourceFile?.name ?? '尚未导入素材', briefing, transcript: transcriptLines, hasActualTranscript })
+    try {
+      await navigator.clipboard.writeText(prompt)
+      setNotice(hasActualTranscript ? '已复制项目上下文：可粘贴给 Codex AI' : '已复制演示上下文；导入真实素材后可实剪')
+    } catch {
+      setNotice('复制失败：请在支持剪贴板权限的浏览器中重试')
+    }
+  }
   const runTranscription = async () => {
     if (!sourceFile) { setNotice('请先导入一个视频或音频文件'); return }
     setAsrStatus({ progress: 0, message: '正在从本地素材解码音频', running: true })
@@ -115,7 +125,7 @@ function App() {
     <header className="topbar">
       <div className="brand"><span className="brand-mark" />RFG <strong>Cut</strong></div>
       <div className="project-control"><span className="project-dot" />筑乐园主理人访谈 <span>· 草稿</span><Icon name="chevron" size={15} /></div>
-      <div className="top-actions"><span className="save-state" aria-live="polite"><i />{notice}</span><a className="motion-preview-link" href="/demo/rfg-cut-export-preview.mp4" target="_blank" rel="noreferrer">交付预演</a><ToolButton icon="undo" label="撤销" /><ToolButton icon="redo" label="重做" /><button className="export-button" type="button" disabled={!hasActualTranscript} title={hasActualTranscript ? '下载剪映交接包' : '请先完成真实素材转写'} onClick={exportHandoff}><Icon name="download" size={16} />交接包</button></div>
+      <div className="top-actions"><span className="save-state" aria-live="polite"><i />{notice}</span><button className="agent-button" type="button" onClick={copyCodexAgentPrompt} title="复制项目上下文给 Codex AI"><Icon name="sparkle" size={15} />交给 Codex</button><a className="motion-preview-link" href="/demo/rfg-cut-export-preview.mp4" target="_blank" rel="noreferrer">交付预演</a><ToolButton icon="undo" label="撤销" /><ToolButton icon="redo" label="重做" /><button className="export-button" type="button" disabled={!hasActualTranscript} title={hasActualTranscript ? '下载剪映交接包' : '请先完成真实素材转写'} onClick={exportHandoff}><Icon name="download" size={16} />交接包</button></div>
     </header>
     <section className="workspace">
       <aside className="left-sidebar">

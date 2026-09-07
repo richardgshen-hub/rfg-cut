@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "rfg_cut": {
+      "command": "node",
+      "args": ["./scripts/rfg-cut-mcp.mjs"],
+      "cwd": ".",
+      "enabled": true,
+      "default_tools_approval_mode": "prompt",
+      "tools": {
+        "rfg_cut_create_review_plan": {
+          "approval_mode": "approve"
+        },
+        "rfg_cut_render_rough_cut": {
+          "approval_mode": "prompt"
+        }
+      },
+      "startup_timeout_sec": 10,
+      "tool_timeout_sec": 3600
+    }
+  }
+}

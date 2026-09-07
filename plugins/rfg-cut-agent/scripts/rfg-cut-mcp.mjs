@@ -73,6 +73,43 @@ function createReviewPlan({ sourceMedia = '未命名素材', briefing = {}, tran
   }
 }
 
+function createNarrativePlan({ sourceMedia = '未命名素材', transcript, targetScript = '', title, summary, beats, warnings = [], nextStep }) {
+  const lines = clampTranscript(transcript)
+  if (typeof targetScript !== 'string') throw new Error('目标成稿必须是文本。')
+  if (typeof title !== 'string' || !title.trim() || typeof summary !== 'string' || !summary.trim()) throw new Error('叙事计划需要标题和摘要。')
+  if (!Array.isArray(beats) || beats.length < 3 || beats.length > 12) throw new Error('叙事计划需要 3–12 个原片片段。')
+  if (!Array.isArray(warnings) || warnings.some((warning) => typeof warning !== 'string')) throw new Error('风险提示必须是文字数组。')
+
+  const normalizedBeats = beats.map((beat, index) => {
+    const start = Number(beat.start)
+    const end = Number(beat.end)
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error(`第 ${index + 1} 个叙事片段时间码无效。`)
+    const sourceLines = lines.filter((line) => line.end > start && line.start < end)
+    if (!sourceLines.length) throw new Error(`第 ${index + 1} 个叙事片段没有对应的原始逐字稿。`)
+    if (typeof beat.role !== 'string' || !beat.role.trim() || typeof beat.editReason !== 'string' || !beat.editReason.trim()) throw new Error(`第 ${index + 1} 个叙事片段缺少作用或编辑理由。`)
+    return {
+      id: typeof beat.id === 'string' && beat.id.trim() ? beat.id.trim() : `beat-${index + 1}`,
+      start,
+      end,
+      role: beat.role.trim(),
+      sourceText: typeof beat.sourceText === 'string' && beat.sourceText.trim() ? beat.sourceText.trim() : sourceLines.map((line) => line.text).join(''),
+      editReason: beat.editReason.trim(),
+    }
+  })
+
+  return {
+    kind: 'rfg-cut-narrative-plan/v1',
+    sourceMedia,
+    title: title.trim(),
+    summary: summary.trim(),
+    targetScript: targetScript.trim(),
+    reviewRequired: true,
+    beats: normalizedBeats,
+    warnings: warnings.map((warning) => warning.trim()).filter(Boolean),
+    nextStep: typeof nextStep === 'string' && nextStep.trim() ? nextStep.trim() : '请逐段试听、确认没有改变原意后，再请求本机实剪。',
+  }
+}
+
 function toolResult(value) {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
 }
@@ -85,6 +122,23 @@ async function publishReviewPlan(reviewPlan) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ reviewPlan }),
+      signal: controller.signal,
+    })
+  } catch {
+    // The bridge is optional: Codex still receives the plan if the web app is not running.
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function publishNarrativePlan(narrativePlan) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 1500)
+  try {
+    await fetch(`${bridgeUrl}/narrative-plan`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ narrativePlan }),
       signal: controller.signal,
     })
   } catch {
@@ -153,6 +207,24 @@ const tools = [
       required: ['sourceFile', 'outputFile', 'segments'],
     },
   },
+  {
+    name: 'rfg_cut_publish_narrative_plan',
+    description: 'Validate and return a Codex-authored, review-required narrative recut plan. Every beat must reference timestamped source transcript; this does not render media.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceMedia: { type: 'string' },
+        transcript: { type: 'array', items: { type: 'object', properties: { start: { type: 'number' }, end: { type: 'number' }, text: { type: 'string' } }, required: ['start', 'end', 'text'] } },
+        targetScript: { type: 'string', description: 'Optional desired structure or prepared script.' },
+        title: { type: 'string' },
+        summary: { type: 'string' },
+        beats: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, start: { type: 'number' }, end: { type: 'number' }, role: { type: 'string' }, sourceText: { type: 'string' }, editReason: { type: 'string' } }, required: ['start', 'end', 'role', 'editReason'] } },
+        warnings: { type: 'array', items: { type: 'string' } },
+        nextStep: { type: 'string' },
+      },
+      required: ['transcript', 'title', 'summary', 'beats'],
+    },
+  },
 ]
 
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity })
@@ -175,10 +247,13 @@ input.on('line', async (line) => {
         ? () => createReviewPlan(params.arguments ?? {})
         : params.name === 'rfg_cut_render_rough_cut'
           ? () => renderRoughCut(params.arguments ?? {})
+          : params.name === 'rfg_cut_publish_narrative_plan'
+            ? () => createNarrativePlan(params.arguments ?? {})
           : null
       if (!handler) throw new Error(`未知工具：${params.name}`)
       const result = await handler()
       if (params.name === 'rfg_cut_create_review_plan') await publishReviewPlan(result)
+      if (params.name === 'rfg_cut_publish_narrative_plan') await publishNarrativePlan(result)
       console.log(jsonResponse(id, toolResult(result)))
       return
     }

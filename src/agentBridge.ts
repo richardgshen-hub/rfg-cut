@@ -13,11 +13,33 @@ export type AgentReviewPlan = {
   nextStep: string
 }
 
+export type AgentNarrativeBeat = {
+  id: string
+  start: number
+  end: number
+  role: string
+  sourceText: string
+  editReason: string
+}
+
+export type AgentNarrativePlan = {
+  kind: 'rfg-cut-narrative-plan/v1'
+  sourceMedia: string
+  title: string
+  summary: string
+  targetScript: string
+  reviewRequired: true
+  beats: AgentNarrativeBeat[]
+  warnings: string[]
+  nextStep: string
+}
+
 export type AgentBridgeSession = {
   revision: number
   updatedAt: string | null
   context: CodexEditContext | null
   reviewPlan: AgentReviewPlan | null
+  narrativePlan: AgentNarrativePlan | null
 }
 
 async function localRequest(path: string, init?: RequestInit) {

@@ -1,6 +1,6 @@
 {
   "name": "rfg-cut-agent",
-  "version": "0.1.0+codex.20260907062228",
+  "version": "0.1.0+codex.20260907082222",
   "description": "Review-first AI editing tools for Chinese talking-head and interview videos.",
   "author": {
     "name": "RFG Cut"

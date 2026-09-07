@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      @font-face { font-family: "Noto Sans SC"; src: local("PingFang SC"); }
+      @font-face { font-family: "DM Mono"; src: local("SF Mono"); }
+      html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #111110; }
+      body { font-family: "Noto Sans SC", sans-serif; color: #E9E7E2; }
+      .mono { font-family: "DM Mono", monospace; }
+      #root { position: relative; overflow: hidden; background: #111110; }
+      .clip { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .scene-content { width: 100%; height: 100%; padding: 118px 88px; display: flex; flex-direction: column; justify-content: center; gap: 30px; }
+      .eyebrow { color: #EF7C45; font: 500 28px/1 "DM Mono", monospace; letter-spacing: .12em; text-transform: uppercase; }
+      .headline { margin: 0; max-width: 850px; font-size: 94px; line-height: 1.17; letter-spacing: -.06em; font-weight: 600; }
+      .subcopy { max-width: 720px; color: #B5B2AA; font-size: 36px; line-height: 1.55; }
+      .rule { width: 140px; height: 5px; background: #EF7C45; }
+      .editor-shell { background: #1D1D1B; border: 1px solid #353531; border-radius: 28px; padding: 34px; box-shadow: 0 34px 80px rgba(0,0,0,.32); display: flex; flex-direction: column; gap: 22px; }
+      .editor-header { display: flex; align-items: center; justify-content: space-between; color: #AAA8A0; font-size: 25px; }
+      .editor-header strong { color: #E9E7E2; font-size: 29px; font-weight: 500; }
+      .status { color: #A9D5B3; font-size: 21px; }
+      .video-placeholder { height: 620px; border-radius: 18px; background: linear-gradient(158deg,#2d342e 0 25%,#807c62 25% 45%,#b75c2c 45% 100%); position: relative; overflow: hidden; }
+      .video-placeholder::after { content: "视频预览"; position: absolute; left: 36px; bottom: 32px; color: #FFF2DD; font-size: 29px; }
+      .transcript-card { border-top: 1px solid #383733; padding: 25px 14px 0; display: flex; flex-direction: column; gap: 16px; }
+      .transcript-line { display: grid; grid-template-columns: 110px 1fr; gap: 16px; color: #A9A69E; font-size: 27px; line-height: 1.45; }
+      .transcript-line.current { color: #F3E6DE; }
+      .time { color: #EF9C70; font: 23px/1.7 "DM Mono", monospace; }
+      .marked { color: #F2C982; background: rgba(226,172,72,.16); padding: 2px 8px; border-radius: 7px; }
+      .progress { height: 7px; background: #33322F; border-radius: 7px; overflow: hidden; }
+      .progress > span { display: block; width: 64%; height: 100%; background: #EF7C45; }
+      .review-card { border: 1px solid #3A3935; background: #191918; border-radius: 22px; padding: 34px; display: flex; flex-direction: column; gap: 21px; }
+      .review-top { color: #EF9C70; font: 500 24px/1 "DM Mono", monospace; letter-spacing: .06em; }
+      .review-title { font-size: 56px; line-height: 1.25; letter-spacing: -.04em; }
+      .review-row { display: flex; gap: 16px; align-items: flex-start; color: #B5B2AA; font-size: 29px; line-height: 1.5; }
+      .tag { flex: none; margin-top: 5px; padding: 5px 11px; color: #F2C982; background: rgba(226,172,72,.16); border-radius: 7px; font-size: 20px; }
+      .check { flex: none; width: 34px; height: 34px; margin-top: 5px; border-radius: 50%; background: #7EAD89; color: #152018; display: grid; place-items: center; font-size: 21px; }
+      .handoff { border-top: 1px solid #34332F; padding-top: 30px; display: flex; align-items: center; justify-content: space-between; color: #B5B2AA; font-size: 25px; }
+      .handoff strong { color: #EF9C70; font-weight: 500; }
+      .footer { color: #77756E; font-size: 24px; }
+      .wipe { background: #EF7C45; transform-origin: left center; }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="12"
+      data-width="1080"
+      data-height="1920"
+    >
+      <section id="scene-intro" class="clip" data-start="0" data-duration="3" data-track-index="1">
+        <div class="scene-content">
+          <div class="eyebrow">RFG CUT / LOCAL PREVIEW</div>
+          <div class="rule"></div>
+          <h1 class="headline">把一段口播，变成可复核的剪辑决定。</h1>
+          <p class="subcopy">逐字稿、高光、口癖与停顿建议，先由人确认，再交给剪映完成。</p>
+        </div>
+      </section>
+      <div id="wipe-1" class="clip wipe" data-start="2.7" data-duration="0.45" data-track-index="2"></div>
+      <section id="scene-editor" class="clip" data-start="3" data-duration="5.7" data-track-index="3">
+        <div class="scene-content">
+          <div class="editor-shell">
+            <div class="editor-header"><strong>筑乐园主理人访谈</strong><span class="status">● 本机转写完成</span></div>
+            <div class="video-placeholder"></div>
+            <div class="transcript-card">
+              <div class="transcript-line"><span class="time">00:00:23</span><span><span class="marked">嗯</span>，然后他会有自己的感受。</span></div>
+              <div class="transcript-line current"><span class="time">00:00:42</span><span>这次展览的起点，是想给孩子一个可以慢下来的地方。</span></div>
+              <div class="transcript-line"><span class="time">00:00:51</span><span>不是上课，也不是把知识塞给他。</span></div>
+              <div class="progress"><span></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div id="wipe-2" class="clip wipe" data-start="8.4" data-duration="0.45" data-track-index="4" data-layout-allow-occlusion></div>
+      <section id="scene-review" class="clip" data-start="8.7" data-duration="3.3" data-track-index="5">
+        <div class="scene-content">
+          <div class="review-card">
+            <div class="review-top">REVIEW FIRST</div>
+            <div class="review-title">AI 给建议，决定仍在你手里。</div>
+            <div class="review-row"><span class="tag">口癖</span><span>00:00:23 · 删除前确认语义是否受影响</span></div>
+            <div class="review-row"><span class="tag">换气口</span><span>00:00:38 · 默认保留，避免说话变得生硬</span></div>
+            <div class="handoff"><span>Brief · SRT · 剪辑清单</span><strong>交给剪映 ›</strong></div>
+          </div>
+          <div class="footer">素材不上传 · 先复核 · 再交付</div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.from("#scene-intro .eyebrow", { y: 26, opacity: 0, duration: 0.5, ease: "power3.out" }, 0.25);
+      tl.from("#scene-intro .rule", { scaleX: 0, duration: 0.45, ease: "power2.out" }, 0.55);
+      tl.from("#scene-intro .headline", { y: 60, opacity: 0, duration: 0.75, ease: "expo.out" }, 0.72);
+      tl.from("#scene-intro .subcopy", { y: 28, opacity: 0, duration: 0.55, ease: "power2.out" }, 1.05);
+      tl.from("#wipe-1", { scaleX: 0, duration: 0.45, ease: "power4.inOut" }, 2.7);
+      tl.from("#scene-editor .editor-shell", { y: 50, opacity: 0, duration: 0.65, ease: "power3.out" }, 3.18);
+      tl.from("#scene-editor .video-placeholder", { scale: 0.96, opacity: 0, duration: 0.55, ease: "power2.out" }, 3.44);
+      tl.from("#scene-editor .transcript-line", { x: -28, opacity: 0, duration: 0.42, stagger: 0.15, ease: "back.out(1.3)" }, 3.8);
+      tl.from("#scene-editor .progress", { scaleX: 0, duration: 0.65, ease: "power3.out" }, 4.5);
+      tl.to("#scene-editor", { opacity: 0, duration: 0.2, ease: "power2.in" }, 8.4);
+      tl.from("#wipe-2", { scaleX: 0, duration: 0.45, ease: "power4.inOut" }, 8.4);
+      tl.from("#scene-review .review-top", { y: 22, opacity: 0, duration: 0.45, ease: "power3.out" }, 8.88);
+      tl.from("#scene-review .review-title", { y: 46, opacity: 0, duration: 0.65, ease: "expo.out" }, 9.05);
+      tl.from("#scene-review .review-row", { x: -24, opacity: 0, duration: 0.42, stagger: 0.14, ease: "power2.out" }, 9.58);
+      tl.from("#scene-review .handoff", { y: 18, opacity: 0, duration: 0.45, ease: "back.out(1.2)" }, 10.15);
+      tl.from("#scene-review .footer", { y: 14, opacity: 0, duration: 0.4, ease: "power2.out" }, 10.55);
+      tl.to("#scene-review", { opacity: 0, duration: 0.35, ease: "power2.in" }, 11.65);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

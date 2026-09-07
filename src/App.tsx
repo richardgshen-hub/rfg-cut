@@ -115,7 +115,7 @@ function App() {
     <header className="topbar">
       <div className="brand"><span className="brand-mark" />RFG <strong>Cut</strong></div>
       <div className="project-control"><span className="project-dot" />筑乐园主理人访谈 <span>· 草稿</span><Icon name="chevron" size={15} /></div>
-      <div className="top-actions"><span className="save-state" aria-live="polite"><i />{notice}</span><ToolButton icon="undo" label="撤销" /><ToolButton icon="redo" label="重做" /><button className="export-button" type="button" disabled={!hasActualTranscript} title={hasActualTranscript ? '下载剪映交接包' : '请先完成真实素材转写'} onClick={exportHandoff}><Icon name="download" size={16} />交接包</button></div>
+      <div className="top-actions"><span className="save-state" aria-live="polite"><i />{notice}</span><a className="motion-preview-link" href="/demo/rfg-cut-export-preview.mp4" target="_blank" rel="noreferrer">交付预演</a><ToolButton icon="undo" label="撤销" /><ToolButton icon="redo" label="重做" /><button className="export-button" type="button" disabled={!hasActualTranscript} title={hasActualTranscript ? '下载剪映交接包' : '请先完成真实素材转写'} onClick={exportHandoff}><Icon name="download" size={16} />交接包</button></div>
     </header>
     <section className="workspace">
       <aside className="left-sidebar">

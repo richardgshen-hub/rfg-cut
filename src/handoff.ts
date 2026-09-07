@@ -5,7 +5,7 @@ export type Briefing = {
   callToAction: string
 }
 
-import type { TranscriptLine } from './transcription'
+import type { CleanupCandidate, TranscriptLine } from './transcription'
 
 export type HandoffCandidate = {
   id: string
@@ -24,6 +24,7 @@ type HandoffInput = {
   transcript: TranscriptLine[]
   candidates: HandoffCandidate[]
   cleanRules: Record<string, boolean>
+  cleanupCandidates: CleanupCandidate[]
 }
 
 export function createHandoffPack(input: HandoffInput) {
@@ -35,6 +36,7 @@ export function createHandoffPack(input: HandoffInput) {
     transcript: input.transcript,
     editDecisions: {
       cleanup: input.cleanRules,
+      cleanupCandidates: input.cleanupCandidates,
       selectedHighlights: input.candidates.filter((candidate) => candidate.enabled),
     },
     jianyingHandoff: {

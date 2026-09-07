@@ -1,4 +1,5 @@
 export type TranscriptLine = { start: number; end: number; text: string }
+export type CleanupCandidate = { type: '口癖' | '停顿' | '换气口'; start: number; end: number; note: string }
 
 type WorkerMessage =
   | { type: 'progress'; progress: number; status: string }
@@ -72,7 +73,7 @@ export function transcriptToSrt(lines: TranscriptLine[]) {
 export function findCleanupCandidates(lines: TranscriptLine[]) {
   const filler = /(^|[，。！？、\s])(嗯+|呃+|额+|啊+|这个|就是|然后|其实)(?=[，。！？、\s]|$)/g
   return lines.flatMap((line, index) => {
-    const candidates = [] as { type: '口癖' | '停顿' | '换气口'; start: number; end: number; note: string }[]
+    const candidates: CleanupCandidate[] = []
     if (filler.test(line.text)) candidates.push({ type: '口癖', start: line.start, end: line.end, note: '识别到常见口头填充词，删除前请复核语义。' })
     filler.lastIndex = 0
     const gap = index < lines.length - 1 ? lines[index + 1].start - line.end : 0

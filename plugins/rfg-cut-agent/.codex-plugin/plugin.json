@@ -1,6 +1,6 @@
 {
   "name": "rfg-cut-agent",
-  "version": "0.1.0+codex.20260907082222",
+  "version": "0.1.0+codex.20260908105019",
   "description": "Review-first AI editing tools for Chinese talking-head and interview videos.",
   "author": {
     "name": "RFG Cut"
@@ -21,7 +21,7 @@
       "Use RFG Cut to propose a review-first edit plan for this interview.",
       "Use RFG Cut to turn my confirmed time ranges into a rough cut."
     ],
-    "brandColor": "#EF7C45"
+    "brandColor": "#D7FF5F"
   },
   "mcpServers": "./.mcp.json"
 }

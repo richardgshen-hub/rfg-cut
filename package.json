@@ -2,13 +2,16 @@
   "name": "rfg-cut",
   "description": "AI 驱动、人工复核优先的中文口播与访谈视频编辑器。",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "keywords": ["video-editing", "chinese-transcription", "codex", "mcp", "talking-head"],
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/dev.mjs",
+    "web": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "node --experimental-strip-types --test tests/*.test.ts tests/*.test.mjs",
     "agent:bridge": "node scripts/rfg-agent-bridge.mjs",
     "preview": "vite preview"
   },

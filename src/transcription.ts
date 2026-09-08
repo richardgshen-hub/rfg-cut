@@ -43,15 +43,26 @@ export async function decodeMediaFile(file: File) {
   }
 }
 
-export function transcribeLocal(audio: Float32Array, onProgress: (progress: number, status: string) => void) {
+export function transcribeLocal(audio: Float32Array, onProgress: (progress: number, status: string) => void, signal?: AbortSignal) {
   return new Promise<TranscriptLine[]>((resolve, reject) => {
     const worker = new Worker(new URL('./whisper.worker.ts', import.meta.url), { type: 'module' })
+    let settled = false
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      signal?.removeEventListener('abort', abort)
+      worker.terminate()
+      callback()
+    }
+    const abort = () => finish(() => reject(new DOMException('转写已取消。', 'AbortError')))
+    if (signal?.aborted) { abort(); return }
+    signal?.addEventListener('abort', abort, { once: true })
     worker.onmessage = ({ data }: MessageEvent<WorkerMessage>) => {
       if (data.type === 'progress') onProgress(data.progress, data.status)
-      if (data.type === 'complete') { worker.terminate(); resolve(data.transcript) }
-      if (data.type === 'error') { worker.terminate(); reject(new Error(data.message)) }
+      if (data.type === 'complete') finish(() => resolve(data.transcript))
+      if (data.type === 'error') finish(() => reject(new Error(data.message)))
     }
-    worker.onerror = () => { worker.terminate(); reject(new Error('本地转写工作线程异常退出。')) }
+    worker.onerror = () => finish(() => reject(new Error('本地转写工作线程异常退出。')))
     worker.postMessage({ type: 'transcribe', audio }, [audio.buffer])
   })
 }

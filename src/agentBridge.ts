@@ -1,6 +1,16 @@
-import type { CodexEditContext } from './codexAgent'
+import type { Briefing } from './handoff'
+import type { TranscriptLine } from './transcription'
 
-const bridgeUrl = 'http://127.0.0.1:8787'
+export type CodexEditContext = {
+  projectId?: string
+  sourceId?: string
+  contextId?: string
+  sourceMedia: string
+  briefing: Briefing
+  transcript: TranscriptLine[]
+  hasActualTranscript: boolean
+  targetScript?: string
+}
 
 export type AgentCleanupCandidate = { type: string; start: number; end: number; reason: string; text?: string }
 export type AgentHighlight = { id: string; start: number; end: number; title: string; reason: string; transcript: string }
@@ -40,18 +50,4 @@ export type AgentBridgeSession = {
   context: CodexEditContext | null
   reviewPlan: AgentReviewPlan | null
   narrativePlan: AgentNarrativePlan | null
-}
-
-async function localRequest(path: string, init?: RequestInit) {
-  const response = await fetch(`${bridgeUrl}${path}`, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } })
-  if (!response.ok) throw new Error(`本机桥接服务返回 ${response.status}`)
-  return response.json() as Promise<AgentBridgeSession>
-}
-
-export function publishAgentContext(context: CodexEditContext) {
-  return localRequest('/session', { method: 'POST', body: JSON.stringify({ context }) })
-}
-
-export function readAgentSession() {
-  return localRequest('/session')
 }
